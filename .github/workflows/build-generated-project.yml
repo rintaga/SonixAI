@@ -1,0 +1,124 @@
+name: Build Sonix Generated Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_zip:
+        description: "Nama ZIP proyek di root repository, contoh MyProject.zip"
+        required: true
+        default: "MyProject.zip"
+        type: string
+      build_mode:
+        description: "Jenis build proyek"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - gradle
+          - android_apk
+          - zip_only
+      java_version:
+        description: "Java untuk proyek Gradle (Minecraft modern biasanya Java 21)"
+        required: true
+        default: "17"
+        type: choice
+        options:
+          - "17"
+          - "21"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout uploaded project ZIP
+        uses: actions/checkout@v4
+
+      - name: Extract and locate project
+        env:
+          PROJECT_ZIP: ${{ inputs.project_zip }}
+        run: |
+          case "$PROJECT_ZIP" in
+            /*|*..*|*\\*) echo "Invalid ZIP path"; exit 2 ;;
+          esac
+          test -f "$PROJECT_ZIP" || { echo "ZIP not found: $PROJECT_ZIP"; exit 3; }
+          mkdir -p "$RUNNER_TEMP/sonix-project/unpacked"
+          unzip -q "$PROJECT_ZIP" -d "$RUNNER_TEMP/sonix-project/unpacked"
+          ROOT="$RUNNER_TEMP/sonix-project/unpacked"
+          if [ ! -f "$ROOT/gradlew" ] && [ ! -f "$ROOT/build.gradle" ] && [ ! -f "$ROOT/build.gradle.kts" ]; then
+            FOUND="$(find "$ROOT" -mindepth 2 -maxdepth 5 -type f \( -name gradlew -o -name build.gradle -o -name build.gradle.kts \) -print -quit)"
+            if [ -n "$FOUND" ]; then ROOT="$(dirname "$FOUND")"; fi
+          fi
+          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          echo "Project root: $ROOT"
+          find "$ROOT" -maxdepth 2 -type f | head -80
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Set up Gradle
+        if: ${{ inputs.build_mode != 'zip_only' }}
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Set up Android SDK
+        if: ${{ inputs.build_mode == 'android_apk' }}
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        if: ${{ inputs.build_mode == 'android_apk' }}
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Build Gradle project
+        if: ${{ inputs.build_mode == 'gradle' || inputs.build_mode == 'android_apk' || inputs.build_mode == 'auto' }}
+        run: |
+          cd "$PROJECT_ROOT"
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            if [ "${{ inputs.build_mode }}" = "android_apk" ]; then
+              ./gradlew --no-daemon assembleDebug
+            else
+              ./gradlew --no-daemon build
+            fi
+          elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+            if [ "${{ inputs.build_mode }}" = "android_apk" ]; then
+              gradle --no-daemon assembleDebug
+            else
+              gradle --no-daemon build
+            fi
+          elif [ "${{ inputs.build_mode }}" = "auto" ]; then
+            echo "No Gradle project found. Exporting source project as ZIP only."
+          else
+            echo "Gradle project file not found."; exit 4
+          fi
+
+      - name: Collect build outputs and source ZIP
+        run: |
+          OUT="$RUNNER_TEMP/sonix-output"
+          mkdir -p "$OUT/compiled"
+          while IFS= read -r -d '' FILE; do
+            REL="${FILE#"$PROJECT_ROOT"/}"
+            mkdir -p "$OUT/compiled/$(dirname "$REL")"
+            cp -f "$FILE" "$OUT/compiled/$REL"
+          done < <(find "$PROJECT_ROOT" -type f \( -name '*.apk' -o -name '*.aab' -o -name '*.jar' -o -name '*.so' \) -not -path '*/.gradle/*' -not -path '*/build/intermediates/*' -print0)
+          (cd "$(dirname "$PROJECT_ROOT")" && zip -qr "$OUT/source-project.zip" "$(basename "$PROJECT_ROOT")" -x '*/.gradle/*' '*/build/*')
+          echo "Collected outputs:"
+          find "$OUT" -type f -maxdepth 8 -print
+
+      - name: Upload project outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonix-Generated-Project
+          path: ${{ runner.temp }}/sonix-output/**
+          if-no-files-found: error
+          retention-days: 30

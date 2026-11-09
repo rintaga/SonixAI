@@ -1,0 +1,74 @@
+name: Train Sonix LoRA (CPU on GitHub)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_id:
+        description: "Pretrained base model to fine-tune"
+        required: true
+        default: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+        type: string
+      max_steps:
+        description: "Training steps (CPU; 100 is a cautious starting point)"
+        required: true
+        default: "100"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    name: LoRA fine-tuning on GitHub CPU runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout Sonix source and dataset
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: training/requirements.txt
+
+      - name: Install CPU training dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r training/requirements.txt
+
+      - name: Show runner (CPU only)
+        run: |
+          python - <<'PY'
+          import os, torch
+          print("CPU threads:", os.cpu_count())
+          print("CUDA available:", torch.cuda.is_available())
+          print("GitHub-hosted standard runner training mode: CPU")
+          PY
+
+      - name: Fine-tune Sonix adapter
+        env:
+          MODEL_ID: ${{ inputs.model_id }}
+          MAX_STEPS: ${{ inputs.max_steps }}
+        run: |
+          python training/train_lora.py \
+            --model-id "$MODEL_ID" \
+            --max-steps "$MAX_STEPS" \
+            --dataset training/dataset.jsonl \
+            --output-dir training/output/sonix-lora \
+            --threads 4 \
+            --max-length 512
+
+      - name: Package adapter
+        run: |
+          cd training/output
+          zip -qr sonix-lora-adapter.zip sonix-lora
+
+      - name: Upload trained adapter
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonix-LoRA-Adapter
+          path: training/output/sonix-lora-adapter.zip
+          if-no-files-found: error
+          retention-days: 30

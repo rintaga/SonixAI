@@ -1,0 +1,114 @@
+name: Build GTA SA AML Plugin (.so)
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_dir:
+        description: "Lokasi folder proyek atau ZIP yang di-upload, misalnya MyAMLPlugin.zip"
+        required: true
+        default: "MyAMLPlugin.zip"
+        type: string
+      ndk_choice:
+        description: "Pilih Google NDK"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - r23c
+          - r30
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build with Google NDK ${{ matrix.ndk.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ndk:
+          - name: r23c
+            version: 23.2.8568313
+          - name: r30
+            version: 30.0.16248370
+    steps:
+      - name: Skip unselected NDK
+        if: ${{ inputs.ndk_choice != 'both' && inputs.ndk_choice != matrix.ndk.name }}
+        run: echo "NDK ${{ matrix.ndk.name }} tidak dipilih"
+
+      - name: Checkout project
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        uses: actions/checkout@v4
+
+      - name: Prepare project directory (folder or ZIP)
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        env:
+          PROJECT_INPUT: ${{ inputs.project_dir }}
+        run: |
+          case "$PROJECT_INPUT" in /*|*..*|*\\*) echo "Invalid project path"; exit 2;; esac
+          if [ -f "$PROJECT_INPUT" ] && [[ "$PROJECT_INPUT" == *.zip ]]; then
+            mkdir -p "$RUNNER_TEMP/sonix-project-src"
+            unzip -q "$PROJECT_INPUT" -d "$RUNNER_TEMP/sonix-project-src"
+            PROJECT_DIR="$(dirname "$(find "$RUNNER_TEMP/sonix-project-src" -name Android.mk -print -quit)")"
+          else
+            PROJECT_DIR="$PROJECT_INPUT"
+          fi
+          test -n "$PROJECT_DIR"
+          test -f "$PROJECT_DIR/Android.mk"
+          test -f "$PROJECT_DIR/Application.mk"
+          test -f "$PROJECT_DIR/main.cpp"
+          grep -q 'APP_ABI := armeabi-v7a' "$PROJECT_DIR/Application.mk"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Prepare official AML headers and sources
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        run: |
+          git clone --depth 1 https://github.com/RusJJ/AndroidModLoader "$RUNNER_TEMP/AndroidModLoader"
+          test -f "$RUNNER_TEMP/AndroidModLoader/template_of_mod/mod/amlmod.h"
+          mkdir -p "$PROJECT_DIR/mod" "$PROJECT_DIR/include" "$PROJECT_DIR/external"
+          cp -R "$RUNNER_TEMP/AndroidModLoader/template_of_mod/mod/." "$PROJECT_DIR/mod/"
+          if [ -d "$RUNNER_TEMP/AndroidModLoader/include" ]; then
+            cp -R "$RUNNER_TEMP/AndroidModLoader/include/." "$PROJECT_DIR/include/"
+          fi
+          if [ -d "$RUNNER_TEMP/AndroidModLoader/external" ]; then
+            cp -R "$RUNNER_TEMP/AndroidModLoader/external/." "$PROJECT_DIR/external/"
+          fi
+          test -f "$PROJECT_DIR/mod/amlmod.h"
+          test -f "$PROJECT_DIR/mod/logger.cpp"
+          test -f "$PROJECT_DIR/mod/config.cpp"
+
+      - name: Set up Android SDK
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        uses: android-actions/setup-android@v3
+
+      - name: Install Google NDK ${{ matrix.ndk.name }}
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-35" "ndk;${{ matrix.ndk.version }}"
+
+      - name: Compile armeabi-v7a .so
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        env:
+          NDK_VERSION: ${{ matrix.ndk.version }}
+        run: |
+          "$ANDROID_SDK_ROOT/ndk/$NDK_VERSION/ndk-build" \
+            NDK_PROJECT_PATH="$PROJECT_DIR" \
+            APP_BUILD_SCRIPT="$PROJECT_DIR/Android.mk" \
+            NDK_APPLICATION_MK="$PROJECT_DIR/Application.mk" \
+            NDK_LIBS_OUT="$RUNNER_TEMP/sonix-libs"
+          mkdir -p "$RUNNER_TEMP/sonix-artifact"
+          find "$RUNNER_TEMP/sonix-libs/armeabi-v7a" -maxdepth 1 -type f -name '*.so' -exec cp -v {} "$RUNNER_TEMP/sonix-artifact/" \;
+          test -n "$(find "$RUNNER_TEMP/sonix-artifact" -maxdepth 1 -name '*.so' -print -quit)"
+          file "$RUNNER_TEMP/sonix-artifact"/*.so
+
+      - name: Upload compiled .so
+        if: ${{ inputs.ndk_choice == 'both' || inputs.ndk_choice == matrix.ndk.name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonix-AML-${{ matrix.ndk.name }}-armeabi-v7a
+          path: ${{ runner.temp }}/sonix-artifact/*.so
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,20 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.iml
+.DS_Store
+
+server/.env
+
+# User build outputs
+SonixNDK/
+**/build/
+**/libs/
+*.so
+local.properties
+__pycache__/
+*.py[cod]
+server/.env.inference
+server/sonix-lora/
+training/output/
