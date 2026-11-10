@@ -772,7 +772,7 @@ public class MainActivity extends Activity {
             meta.put("abi", "armeabi-v7a");
             meta.put("created_by", "Sonix AI 1.00");
         } catch (Exception ignored) { }
-        writeTextFile(new File(projectDir, ".sonix-project.json"), meta.toString(2));
+        writeTextFile(new File(projectDir, ".sonix-project.json"), meta.toString());
     }
 
     private void addPreset(LinearLayout parent, String label, String prompt) {
