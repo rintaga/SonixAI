@@ -8,8 +8,10 @@
     </queries>
 
     <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
-        android:label="Sonix AI 1.00"
+        android:label="Sonix"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <activity
@@ -19,6 +21,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sonix" android:host="auth" android:path="/callback" />
             </intent-filter>
         </activity>
     </application>
