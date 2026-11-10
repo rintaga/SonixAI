@@ -114,7 +114,7 @@ public class MainActivity extends Activity {
         navScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
-        String[] pages = {"Home", "AI Chat", "Builder", "Terminal SN", "NDK", "Help", "Settings"};
+        String[] pages = {"Home", "AI Chat", "Native Brain", "Builder", "Terminal SN", "NDK", "Help", "Settings"};
         for (String page : pages) {
             Button b = button(page, false);
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, dp(40));
@@ -136,6 +136,7 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         switch (page) {
             case "AI Chat": buildChat(); break;
+            case "Native Brain": buildNativeBrain(); break;
             case "Builder": buildBuilder(); break;
             case "Terminal SN": buildTerminal(); break;
             case "NDK": buildNdk(); break;
@@ -143,6 +144,59 @@ public class MainActivity extends Activity {
             case "Settings": buildSettings(); break;
             default: buildHome(); break;
         }
+    }
+
+
+    private void buildNativeBrain() {
+        LinearLayout page = pageColumn();
+        page.addView(text("Sonix Native Brain", 23, TEXT, true));
+        page.addView(text("Mesin pemrosesan lokal C++ melalui Android NDK", 13, MUTED, false));
+        page.addView(space(12));
+
+        LinearLayout info = panel();
+        info.addView(text("NATIVE ENGINE STATUS", 13, TEXT, true));
+        info.addView(text(
+                NativeAI.isAvailable() ? "● NATIVE ENGINE ACTIVE" : "● NATIVE ENGINE UNAVAILABLE",
+                14, NativeAI.isAvailable() ? Color.rgb(98, 220, 159) : Color.RED, true));
+        info.addView(text(NativeAI.version(), 12, MUTED, false));
+        page.addView(info);
+
+        page.addView(space(12));
+        page.addView(text("Coba mesin native", 17, TEXT, true));
+
+        EditText prompt = new EditText(this);
+        prompt.setHint("Contoh: Halo Sonix");
+        styleInput(prompt);
+        prompt.setMinLines(2);
+        prompt.setMaxLines(4);
+        page.addView(prompt);
+
+        Button run = button("Jalankan Native Brain", true);
+        page.addView(run);
+
+        LinearLayout resultPanel = panel();
+        resultPanel.addView(text("HASIL PEMROSESAN", 13, TEXT, true));
+        TextView result = text("Hasil akan muncul di sini.", 14, MUTED, false);
+        result.setTextIsSelectable(true);
+        resultPanel.addView(result);
+        page.addView(resultPanel);
+
+        run.setOnClickListener(v -> {
+            String input = prompt.getText().toString().trim();
+            if (input.isEmpty()) {
+                Toast.makeText(this, "Masukkan pesan terlebih dahulu.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!NativeAI.isAvailable()) {
+                result.setText("Native engine tidak tersedia. Periksa hasil build NDK.");
+                return;
+            }
+            result.setText(NativeAI.reply(input)
+                    + "\n\nToken terdeteksi: " + NativeAI.tokenCount(input)
+                    + "\nMesin: " + NativeAI.version());
+        });
+
+        content.addView(page);
     }
 
     private void buildHome() {
@@ -165,6 +219,7 @@ public class MainActivity extends Activity {
         addFeature(box, "02  MOD BUILDER", "Jelaskan target aplikasi/game dan fitur mod yang ingin dibuat; Sonix menyiapkan proyek dan menjalankan build.", "Builder");
         addFeature(box, "03  TERMINAL SN", "Kirim perintah ke Termux asli agar tool berjalan di lingkungan Termux.", "Terminal SN");
         addFeature(box, "04  NDK CENTER", "Setup storage, Clang, CMake, Ninja, Git, dan paket native build.", "NDK");
+        addFeature(box, "06  NATIVE BRAIN", "Mesin pemrosesan lokal C++ melalui Android NDK dan JNI.", "Native Brain");
         addFeature(box, "05  GITHUB BUILD", "Workflow untuk membuat APK debug secara otomatis di GitHub Actions.", "Help");
         box.addView(space(8));
         box.addView(text("Catatan: Sonix 1.00 adalah identitas model di aplikasi. Agar chat benar-benar menjawab, sambungkan endpoint AI dan API key pada Settings.", 12, MUTED, false));
