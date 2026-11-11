@@ -53,7 +53,7 @@ def main():
     print(f"Dataset rows: {len(dataset_rows)}")
     print(f"Base model: {args.model_id}")
 
-    tokenizer = AutoTokenizer.from_pretrained(trust_remote_code=True, args.model_id, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True,trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
