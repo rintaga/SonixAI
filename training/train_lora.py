@@ -38,7 +38,7 @@ def load_rows(path: Path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-id", default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
+    parser.add_argument("--model-id", default="deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct")
     parser.add_argument("--dataset", default="training/dataset.jsonl")
     parser.add_argument("--output-dir", default="training/output/sonix-lora")
     parser.add_argument("--epochs", type=float, default=1.0)
