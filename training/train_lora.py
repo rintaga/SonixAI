@@ -62,6 +62,7 @@ def main():
         args.model_id,
         torch_dtype=torch.float32,
         low_cpu_mem_usage=True,
+        trust_remote_code=True,
     )
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
