@@ -45,10 +45,10 @@ def main():
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--max-length", type=int, default=512)
     parser.add_argument("--threads", type=int, default=4)
+    args = parser.parse_args()
     args.model_id = args.model_id.strip().rstrip(".")
 if not args.model_id:
     parser.error("--model-id tidak boleh kosong")
-    args = parser.parse_args()
 
     torch.set_num_threads(max(1, args.threads))
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
