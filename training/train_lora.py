@@ -50,6 +50,11 @@ def main():
 if not args.model_id:
     parser.error("--model-id tidak boleh kosong")
 
+    # Normalize accidental trailing punctuation in model IDs.
+    args.model_id = args.model_id.strip().rstrip(".")
+    if not args.model_id:
+        parser.error("--model-id tidak boleh kosong")
+
     torch.set_num_threads(max(1, args.threads))
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     dataset_rows = load_rows(Path(args.dataset))
